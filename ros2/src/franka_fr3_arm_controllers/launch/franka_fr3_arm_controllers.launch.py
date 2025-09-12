@@ -69,7 +69,7 @@ def generate_robot_nodes(context):
                 package="controller_manager",
                 executable="spawner",
                 namespace=namespace,
-                arguments=["joint_impedance_controller", "--controller-manager-timeout", "30"],
+                arguments=["joint_impedance_controller", "--controller-manager-timeout", "30", "--switch-timeout", "600"],
                 parameters=[
                     PathJoinSubstitution(
                         [
