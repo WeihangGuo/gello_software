@@ -54,6 +54,7 @@ class JointImpedanceController : public controller_interface::ControllerInterfac
   double k_alpha_;
   bool move_to_start_position_finished_{false};
   rclcpp::Time start_time_;
+  rclcpp::Time start_position_time_;
   std::unique_ptr<MotionGenerator> motion_generator_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_subscriber_ = nullptr;
   bool gello_position_values_valid_ = false;

@@ -54,15 +54,18 @@ controller_interface::return_type JointImpedanceController::update(
   updateJointStates_();
   Vector7d q_goal;
   Vector7d tau_d_calculated;
+  double gain_factor = 1.0;
 
   if (!move_to_start_position_finished_) {
     auto trajectory_time = this->get_node()->now() - start_time_;
     auto motion_generator_output = motion_generator_->getDesiredJointPositions(trajectory_time);
     move_to_start_position_finished_ = motion_generator_output.second;
-
+    if (move_to_start_position_finished_) {
+      start_position_time_ = this->get_node()->now();
+    }
     q_goal = motion_generator_output.first;
   }
-
+  
   if (move_to_start_position_finished_) {
     if (!gello_position_values_valid_) {
       RCLCPP_FATAL(get_node()->get_logger(), "Timeout: No valid joint states received from Gello");
@@ -71,9 +74,13 @@ controller_interface::return_type JointImpedanceController::update(
     for (int i = 0; i < num_joints; ++i) {
       q_goal(i) = gello_position_values_[i];
     }
+    const auto current_time = this->get_node()->now();
+    const double duration_ramp = 1.0;
+    const double duration_since_start_position = (current_time - start_position_time_).seconds();
+    gain_factor = std::min(1.0, std::max(0.0, duration_since_start_position / duration_ramp));
   }
 
-  tau_d_calculated = calculateTauDGains_(q_goal);
+  tau_d_calculated = gain_factor * calculateTauDGains_(q_goal);
 
   for (int i = 0; i < num_joints; ++i) {
     command_interfaces_[i].set_value(tau_d_calculated(i));
