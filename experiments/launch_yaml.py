@@ -15,6 +15,7 @@ from gello.utils.launch_utils import instantiate_from_dict
 # Global variables for cleanup
 active_threads = []
 active_servers = []
+active_robots = []  # Track robot instances for cleanup
 cleanup_in_progress = False
 
 
@@ -25,7 +26,45 @@ def cleanup():
         return
     cleanup_in_progress = True
 
-    print("Cleaning up resources...")
+    print("\nCleaning up resources...")
+    
+    # Cleanup robots first (UR, etc.)
+    for robot in active_robots:
+        try:
+            print(f"Disconnecting robot: {robot.__class__.__name__}")
+            
+            # For UR robots: stop RTDE and disconnect gripper
+            if hasattr(robot, 'robot') and robot.robot is not None:
+                # Stop any ongoing control
+                if hasattr(robot.robot, 'stopScript'):
+                    robot.robot.stopScript()
+                # Disconnect RTDE control interface
+                if hasattr(robot.robot, 'disconnect'):
+                    robot.robot.disconnect()
+            
+            # Disconnect RTDE receive interface
+            if hasattr(robot, 'r_inter') and robot.r_inter is not None:
+                if hasattr(robot.r_inter, 'disconnect'):
+                    robot.r_inter.disconnect()
+            
+            # Disconnect gripper
+            if hasattr(robot, 'gripper') and robot.gripper is not None:
+                if hasattr(robot.gripper, 'disconnect'):
+                    robot.gripper.disconnect()
+                    print(f"  ✓ Gripper disconnected")
+            
+            # End freedrive mode if active
+            if hasattr(robot, '_free_drive') and robot._free_drive:
+                try:
+                    robot.set_freedrive_mode(False)
+                except:
+                    pass
+                    
+            print(f"  ✓ Robot disconnected")
+        except Exception as e:
+            print(f"  ✗ Error disconnecting robot: {e}")
+    
+    # Cleanup ZMQ servers
     for server in active_servers:
         try:
             if hasattr(server, "close"):
@@ -33,6 +72,7 @@ def cleanup():
         except Exception as e:
             print(f"Error closing server: {e}")
 
+    # Cleanup threads
     for thread in active_threads:
         if thread.is_alive():
             thread.join(timeout=2)
@@ -77,6 +117,7 @@ class Args:
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
+    print("Received shutdown signal, cleaning up...")
     cleanup()
     import os
 
@@ -123,6 +164,10 @@ def main():
         )
 
     left_robot = instantiate_from_dict(left_robot_cfg)
+    
+    # Track robot for cleanup (for hardware robots like UR)
+    if hasattr(left_robot, 'robot') or hasattr(left_robot, 'disconnect'):
+        active_robots.append(left_robot)
 
     if bimanual:
         from gello.robots.robot import BimanualRobot
@@ -134,6 +179,11 @@ def main():
             )
 
         right_robot = instantiate_from_dict(right_robot_cfg)
+        
+        # Track right robot for cleanup
+        if hasattr(right_robot, 'robot') or hasattr(right_robot, 'disconnect'):
+            active_robots.append(right_robot)
+        
         robot = BimanualRobot(left_robot, right_robot)
 
         # For bimanual, use the left config for general settings (hz, etc.)
@@ -194,8 +244,24 @@ def main():
         # Create client to communicate with hardware
         robot_client = ZMQClientRobot(port=hardware_port, host=hardware_host)
 
-    env = RobotEnv(robot_client, control_rate_hz=cfg.get("hz", 30))
+    # Setup camera clients if specified in config (backward compatible)
+    camera_dict = {}
+    if "cameras" in cfg:
+        from gello.zmq_core.camera_node import ZMQClientCamera
+        
+        print(f"Connecting to {len(cfg['cameras'])} camera server(s)...")
+        for camera_name, camera_cfg in cfg["cameras"].items():
+            try:
+                port = camera_cfg.get("port", 5000)
+                host = camera_cfg.get("host", "127.0.0.1")
+                camera_dict[camera_name] = ZMQClientCamera(port=port, host=host)
+                print(f"  ✓ {camera_name}: connected to {host}:{port}")
+            except Exception as e:
+                print(f"  ✗ Failed to connect to {camera_name} at {host}:{port}: {e}")
+                print(f"    Make sure camera server is running!")
 
+    env = RobotEnv(robot_client, control_rate_hz=cfg.get("hz", 30), camera_dict=camera_dict)
+    print("Environment created")
     # Move robot to start_joints position if specified in config
     from gello.utils.launch_utils import move_to_start_position
 
