@@ -1,3 +1,12 @@
+Example pipeline: 
+```
+uv run python  experiments/launch_yaml.py --left-config-path configs/thing2_real.yaml --use-save-interface
+
+uv run python experiments/convert_gello_lerobot.py -input-dir data/pick_up_yellow_lego --output-dir lerobot_datasets/pick_up_yellow_lego --fps 30 --recursive
+
+uv run python experiments/push_to_huggingface.py --dataset-dirs lerobot_datasets/pick_up_yellow_lego lerobot_datasets/pick_up_green_lego --repo-id weihang44/kavraki.ur5s
+```
+
 # GELLO: General, Low-Cost, and Intuitive Teleoperation Framework
 
 <p align="center">
