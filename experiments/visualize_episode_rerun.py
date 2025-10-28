@@ -154,7 +154,7 @@ def visualize_with_rerun(
         
         # === Camera Images ===
         # Wrist camera
-        wrist_rgb = frame.get('wrist_image')
+        wrist_rgb = frame.get('wrist_image_rgb')
         if wrist_rgb is not None:
             rr.log("cameras/wrist_image/rgb", rr.Image(wrist_rgb))
         
@@ -165,7 +165,7 @@ def visualize_with_rerun(
             rr.log("cameras/wrist_image/depth", rr.DepthImage(depth_normalized))
         
         # Side camera
-        side_rgb = frame.get('image')
+        side_rgb = frame.get('image_rgb')
         if side_rgb is not None:
             rr.log("cameras/image/rgb", rr.Image(side_rgb))
         

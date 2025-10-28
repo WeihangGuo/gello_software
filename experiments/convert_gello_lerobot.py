@@ -12,7 +12,12 @@ Usage:
         --input-dir data/GelloAgent/1028_143052 \
         --output-dir lerobot_datasets/my_robot_data \
         --repo-id "username/my_robot_dataset" \
-        --fps 30
+        --fps 30 \
+        --robot-type ur5 \
+        --image-height 480 \
+        --image-width 640 \
+        --state-dim 7 \
+        --action-dim 7
 
 Or process multiple episodes:
     python experiments/convert_gello_lerobot.py \
@@ -26,6 +31,7 @@ Notes:
 - Supports both old naming (wrist_rgb/side_rgb) and new naming (wrist_image/image)
 - Output keys: 'image' (main camera), 'wrist_image' (wrist camera)
 - Images stored in HWC format for LeRobot compatibility
+- Fixed feature dimensions can be specified via command-line arguments
 """
 
 import argparse
@@ -204,6 +210,12 @@ def save_lerobot_dataset(
     output_dir: Path,
     repo_id: str,
     fps: int,
+    robot_type: str = "ur5",
+    image_height: int = 480,
+    image_width: int = 640,
+    state_dim: int = 7,
+    action_dim: int = 7,
+    num_workers: int = 5,
 ):
     """Save episodes in LeRobot dataset format."""
     try:
@@ -219,12 +231,12 @@ def save_lerobot_dataset(
         # Use official LeRobot dataset format
         print(f"\nCreating LeRobot dataset at {output_dir}...")
         
-        # Infer shapes from first episode
+        # Check if images are available in first episode
         first_ep = episodes_data[0]
-        state_dim = first_ep['state'].shape[1]
-        action_dim = first_ep['actions'].shape[1]
+        has_main_image = 'image' in first_ep
+        has_wrist_image = 'wrist_image' in first_ep
         
-        # Build features dict with proper dtype and shape
+        # Build features dict with fixed dimensions
         features = {
             "state": {
                 "dtype": "float32",
@@ -238,39 +250,37 @@ def save_lerobot_dataset(
             },
         }
         
-        # Add image features if available
-        if 'image' in first_ep:
-            img_data = first_ep['image']
-            H, W, C = img_data.shape[1], img_data.shape[2], img_data.shape[3]
+        # Add image features with fixed dimensions if available
+        if has_main_image:
             features["image"] = {
                 "dtype": "image",
-                "shape": (H, W, C),
+                "shape": (image_height, image_width, 3),
                 "names": ["height", "width", "channel"],
             }
-            print(f"  Main camera 'image': {H}x{W}x{C}")
+            print(f"  Main camera 'image': {image_height}x{image_width}x3")
         
-        if 'wrist_image' in first_ep:
-            wrist_data = first_ep['wrist_image']
-            H, W, C = wrist_data.shape[1], wrist_data.shape[2], wrist_data.shape[3]
+        if has_wrist_image:
             features["wrist_image"] = {
                 "dtype": "image",
-                "shape": (H, W, C),
+                "shape": (image_height, image_width, 3),
                 "names": ["height", "width", "channel"],
             }
-            print(f"  Wrist camera 'wrist_image': {H}x{W}x{C}")
+            print(f"  Wrist camera 'wrist_image': {image_height}x{image_width}x3")
         
+        print(f"  Robot type: {robot_type}")
         print(f"  State dim: {state_dim}")
         print(f"  Action dim: {action_dim}")
+        print(f"  Num workers: {num_workers}")
         
         # Create dataset with explicit features
-        dataset = LeRobotDataset.create(
+        dataset = LeRobotDataset.create(  # type: ignore
             repo_id=repo_id,
-            robot_type="ur",
+            robot_type=robot_type,
             fps=fps,
             root=output_dir,
             features=features,
-            image_writer_threads=10,
-            image_writer_processes=5,
+            image_writer_threads=max(10, num_workers * 2),
+            image_writer_processes=max(5, num_workers),
         )
         
         # Add episodes
@@ -339,6 +349,42 @@ def main():
         default=10,
         help="Minimum number of frames required for an episode",
     )
+    parser.add_argument(
+        "--robot-type",
+        type=str,
+        default="ur5",
+        help="Robot type identifier (default: ur5)",
+    )
+    parser.add_argument(
+        "--image-height",
+        type=int,
+        default=480,
+        help="Fixed height for images (default: 480)",
+    )
+    parser.add_argument(
+        "--image-width",
+        type=int,
+        default=640,
+        help="Fixed width for images (default: 640)",
+    )
+    parser.add_argument(
+        "--state-dim",
+        type=int,
+        default=7,
+        help="State dimension (default: 7 for 6 joints + 1 gripper)",
+    )
+    parser.add_argument(
+        "--action-dim",
+        type=int,
+        default=7,
+        help="Action dimension (default: 7 for 6 joints + 1 gripper)",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=5,
+        help="Number of workers for image writing (default: 5)",
+    )
     
     args = parser.parse_args()
     
@@ -390,6 +436,12 @@ def main():
         output_dir,
         args.repo_id,
         args.fps,
+        robot_type=args.robot_type,
+        image_height=args.image_height,
+        image_width=args.image_width,
+        state_dim=args.state_dim,
+        action_dim=args.action_dim,
+        num_workers=args.num_workers,
     )
     
     print("\n" + "=" * 60)
