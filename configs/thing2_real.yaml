@@ -12,3 +12,14 @@ agent:
     gripper_config: [7, 192, 150]
   start_joints: [0.0, -1.57, 1.57, -1.57, -1.57, 0.0, 1.0]
 hz: 30
+
+# Camera configuration (optional - remove this section to disable cameras)
+# Connects to ZMQ camera servers started by launch_camera_nodes.py
+# Camera servers auto-assign: first camera → port 5000, second camera → port 5001
+cameras:
+  image:
+    port: 5000
+    host: 127.0.0.1
+  wrist_image:
+    port: 5001
+    host: 127.0.0.1
