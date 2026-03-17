@@ -1,6 +1,53 @@
+# Kavraki Lab Notes
+
+## Install
+Follow the installation instructions. Use `uv` to manage the virtual environment.
+To run the code, activate the virtual environment first:
+```bash
+source .venv/bin/activate
+```
+
+## Basic Control
+Control Thing 1 only with the *black* GELLO:
+```bash
+uv run python  experiments/launch_yaml.py --left-config-path configs/thing1_real.yaml
+```
+
+Control Thing 2 only with the *pink* GELLO:
+```bash
+uv run python  experiments/launch_yaml.py --left-config-path configs/thing2_real.yaml
+```
+You can also control the Thing 2 with the *black* GELLO:
+```bash
+uv run python  experiments/launch_yaml.py --left-config-path configs/thing2_with_black.yaml
+```
+Control both Thing 1 and Thing 2:
+```bash
+uv run python  experiments/launch_yaml.py --left-config-path configs/thing1_real.yaml --right-config-path configs/thing2_real.yaml
+```
+### Troubleshooting
+- `RuntimeError: Error: Could not connect to: 192.168.50.20 at 30004, verify the IP`:
+  - Make sure the computer is connected to `realtek ethernet`
+  - If the error persists, disconnect the `aquantia ethernet`
+- `One of the RTDE input registers are already in use! Currently you must disable the EtherNet/IP adapter, PROFINET or any MODBUS unit configured on the robot. This might change in the future.`
+  - Make sure the ft sensor is disconnected from the robot and reboot the robot.
+  - If the error persists, reboot the robot again...
+  
+## Record the data: 
+start camera node: 
+```bash
+uv run python experiments/launch_camera_nodes.py
+```
+If you see the script prints "Timeout in Camera Server", it's fine. 
+
+Then in *another* terminal: 
+```bash
+uv run python  experiments/launch_yaml.py --left-config-path configs/thing2_real.yaml --use-save-interface
+```
+
 Example pipeline: 
 ```
-uv run python  experiments/launch_yaml.py --left-config-path configs/thing2_real.yaml --use-save-interface
+uv run python  experiments/launch_yaml.py --left-config-path configs/thing2_real.yaml
 
 uv run python experiments/convert_gello_lerobot.py -input-dir data/pick_up_yellow_lego --output-dir lerobot_datasets/pick_up_yellow_lego --fps 30 --recursive
 
